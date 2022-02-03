@@ -45,12 +45,15 @@ public class CityGenerator : MonoBehaviour
 
     List<List<int>> zones = new List<List<int>>();
 
-    int width = 500;
-    int depth = 500;
+    int width = 1000;
+    int depth = 1000;
 
     Vector3Int crawlerPos;
     Vector3 dir = new Vector3(0, 0, 1);
     Vector3 neutral = new Vector3(0, 0, 1);
+
+    public int numberOfCrawls = 200;
+    float progress = 0.005f;
 
     Vector3Int minDimensions = Vector3Int.zero;
     Vector3Int maxDimensions = Vector3Int.zero;
@@ -80,26 +83,9 @@ public class CityGenerator : MonoBehaviour
                 citymap.Add(mapKey, PieceType.ROAD);
             }
         }
-    }
 
-    int counter = 0;
-    bool done = false;
-
-    // Update is called once per frame
-    void Update()
-    {
-        if (done) return;
-        if (counter < 200)
-        {
-            Crawl();
-            counter++;
-        }
-        else
-        {
-            FixRoads();
-            Invoke("BuildHouses", 0.1f);
-            done = true;
-        }
+        UnityEditor.EditorUtility.DisplayProgressBar("Generating City", "Drawing Roads", progress);
+        StartCoroutine(Crawl());
     }
 
     void AddNoDuplicates(RoadPiece newPiece)
@@ -121,16 +107,6 @@ public class CityGenerator : MonoBehaviour
 
     void FixRoads()
     {
-
-        for (int i = 0; i < 5; i++)
-        {
-            Vector3Int mapKey = Vector3Int.RoundToInt(crawlerPos - Vector3Int.RoundToInt(dir * i));
-            if (citymap.ContainsKey(mapKey))
-            {
-                citymap.Remove(mapKey);
-            }
-        }
-
         Lookup<Vector3Int, RoadPiece> lookup = (Lookup<Vector3Int, RoadPiece>)roadPieces.ToLookup(p => p.position, p => p);
 
         foreach (IGrouping<Vector3Int, RoadPiece> roadGroup in lookup)
@@ -162,7 +138,7 @@ public class CityGenerator : MonoBehaviour
                     DestroyImmediate(r.road);
                 }
 
-                if (hasStraight0 && hasStraight90 || hasStraight90 && hasStraight180 || hasStraight180 && hasStraight270 || hasStraight270 && hasStraight0 || hasCorner0 && hasCorner180 || hasCorner90 && hasCorner270)
+                if (hasStraight0 && hasStraight90 || hasStraight90 && hasStraight180 || hasStraight180 && hasStraight270 || hasStraight270 && hasStraight0 || hasCorner0 && hasCorner180 || hasCorner90 && hasCorner270 || hasCorner90 && (hasStraight90 || hasStraight270) && hasCorner0 || hasCorner0 && (hasStraight0 || hasStraight180) && hasCorner270)
                     Instantiate(crossroad, roadGroup.Key, Quaternion.identity);
                 else if (hasCorner0 && hasCorner90 || hasCorner0 && hasStraight0 || hasCorner0 && hasStraight180 || hasCorner90 && hasStraight0 || hasCorner90 && hasStraight180)
                     Instantiate(tJunction, roadGroup.Key, Quaternion.identity);
@@ -177,70 +153,120 @@ public class CityGenerator : MonoBehaviour
         }
     }
 
-    void Crawl()
+    void CheckOutOfBounds()
     {
-        int randomTurn = UnityEngine.Random.Range(0, 3);
-        float rot;
-        GameObject go;
-        RoadPiece newRoad;
-
-        if (randomTurn == 0)
+        if (crawlerPos.x > width || crawlerPos.x < 0 || crawlerPos.z > depth || crawlerPos.z < 0)
         {
-            dir = Quaternion.Euler(0, -90, 0) * dir;
-            rot = Vector3.SignedAngle(neutral, dir, this.transform.up) + 90;
-            go = Instantiate(corner, crawlerPos, Quaternion.identity);
-            go.transform.Rotate(0, rot, 0);
-
-            newRoad = new RoadPiece { position = crawlerPos, type = RoadType.CORNER, yRotation = (int) Mathf.Round(go.transform.rotation.eulerAngles.y / 90) * 90, road = go };
+            ReclaimMap();
+            crawlerPos.x = 0;
+            crawlerPos.z = 0;
         }
-        else if (randomTurn == 1)
+    }
+
+    void ReclaimMap()
+    {
+        int roadMask = 1 << 6;
+        RaycastHit hitUp;
+
+        for (int i = 0; i < 5; i++)
         {
-            dir = Quaternion.Euler(0, 90, 0) * dir;
-            rot = Vector3.SignedAngle(neutral, dir, this.transform.up) + 180;
-            go = Instantiate(corner, crawlerPos, Quaternion.identity);
-            go.transform.Rotate(0, rot, 0);
-
-            newRoad = new RoadPiece { position = crawlerPos, type = RoadType.CORNER, yRotation = (int)Mathf.Round(go.transform.rotation.eulerAngles.y / 90) * 90, road = go };
-        }
-        else
-        {
-            rot = Vector3.SignedAngle(neutral, dir, this.transform.up);
-            go = Instantiate(straight, crawlerPos, Quaternion.identity);
-            go.transform.Rotate(0, rot, 0);
-
-            newRoad = new RoadPiece { position = crawlerPos, type = RoadType.STRAIGHT, yRotation = (int)Mathf.Round(go.transform.rotation.eulerAngles.y / 90) * 90, road = go };
-        }
-
-        AddNoDuplicates(newRoad);
-
-        Vector3Int straightPos = crawlerPos + Vector3Int.RoundToInt(dir * 10);
-
-        rot = Vector3.SignedAngle(neutral, dir, this.transform.up);
-        go = Instantiate(straight, straightPos, Quaternion.identity);
-        go.transform.Rotate(0, rot, 0);
-
-        newRoad = new RoadPiece { position = straightPos, type = RoadType.STRAIGHT, yRotation = (int)Mathf.Round(go.transform.rotation.eulerAngles.y / 90) * 90, road = go };
-
-        AddNoDuplicates(newRoad);
-
-        for (int i = 0; i <= 20; i++)
-        {
-            Vector3Int mapKey = Vector3Int.RoundToInt(crawlerPos + Vector3Int.RoundToInt(dir * i));
-            if (!citymap.ContainsKey(mapKey))
+            Vector3Int mapKey = Vector3Int.RoundToInt(crawlerPos - Vector3Int.RoundToInt(dir * i));
+            if (citymap.ContainsKey(mapKey))
             {
-                citymap.Add(mapKey, PieceType.ROAD);
+                if (!Physics.Raycast(mapKey + new Vector3Int(0, -5, 0), Vector3.up, out hitUp, 10, roadMask))
+                {
+                    citymap.Remove(mapKey);
+                }
+                    
             }
         }
+    }
 
-        crawlerPos += Vector3Int.RoundToInt(dir * 20);
-        //if (crawlerPos.x > width || crawlerPos.x < 0 || crawlerPos.z > depth || crawlerPos.z < 0)
-        //    crawlerPos -= Vector3Int.RoundToInt(dir * 20);
-        crawler.transform.position = crawlerPos;
+    IEnumerator Crawl()
+    {
+        int crawlCount = 0;
 
-        if (minDimensions.x > crawlerPos.x) minDimensions.x = crawlerPos.x;
-        if (minDimensions.z > crawlerPos.z) minDimensions.z = crawlerPos.z;
-        if (maxDimensions.x < crawlerPos.x) maxDimensions.x = crawlerPos.x;
-        if (maxDimensions.z < crawlerPos.z) maxDimensions.z = crawlerPos.z;
+        while (crawlCount < numberOfCrawls)
+        {
+            crawlCount++;
+            UnityEditor.EditorUtility.DisplayProgressBar("Generating City", "Drawing Roads", progress += 0.005f);
+
+            int randomTurn = UnityEngine.Random.Range(0, 3);
+            float rot;
+            GameObject go;
+            RoadPiece newRoad;
+
+            if (randomTurn == 0)
+            {
+                dir = Quaternion.Euler(0, -90, 0) * dir;
+                rot = Vector3.SignedAngle(neutral, dir, this.transform.up) + 90;
+                go = Instantiate(corner, crawlerPos, Quaternion.identity);
+                go.transform.Rotate(0, rot, 0);
+
+                newRoad = new RoadPiece { position = crawlerPos, type = RoadType.CORNER, yRotation = (int)Mathf.Round(go.transform.rotation.eulerAngles.y / 90) * 90, road = go };
+            }
+            else if (randomTurn == 1)
+            {
+                dir = Quaternion.Euler(0, 90, 0) * dir;
+                rot = Vector3.SignedAngle(neutral, dir, this.transform.up) + 180;
+                go = Instantiate(corner, crawlerPos, Quaternion.identity);
+                go.transform.Rotate(0, rot, 0);
+
+                newRoad = new RoadPiece { position = crawlerPos, type = RoadType.CORNER, yRotation = (int)Mathf.Round(go.transform.rotation.eulerAngles.y / 90) * 90, road = go };
+            }
+            else
+            {
+                rot = Vector3.SignedAngle(neutral, dir, this.transform.up);
+                go = Instantiate(straight, crawlerPos, Quaternion.identity);
+                go.transform.Rotate(0, rot, 0);
+
+                newRoad = new RoadPiece { position = crawlerPos, type = RoadType.STRAIGHT, yRotation = (int)Mathf.Round(go.transform.rotation.eulerAngles.y / 90) * 90, road = go };
+            }
+
+            AddNoDuplicates(newRoad);
+
+            Vector3Int straightPos = crawlerPos + Vector3Int.RoundToInt(dir * 10);
+
+            rot = Vector3.SignedAngle(neutral, dir, this.transform.up);
+            go = Instantiate(straight, straightPos, Quaternion.identity);
+            go.transform.Rotate(0, rot, 0);
+
+            newRoad = new RoadPiece { position = straightPos, type = RoadType.STRAIGHT, yRotation = (int)Mathf.Round(go.transform.rotation.eulerAngles.y / 90) * 90, road = go };
+
+            AddNoDuplicates(newRoad);
+
+            yield return null;
+
+            for (int i = 0; i <= 20; i++)
+            {
+                Vector3Int mapKey = Vector3Int.RoundToInt(crawlerPos + Vector3Int.RoundToInt(dir * i));
+                if (!citymap.ContainsKey(mapKey))
+                {
+                    citymap.Add(mapKey, PieceType.ROAD);
+                }
+            }
+
+            crawlerPos += Vector3Int.RoundToInt(dir * 20);
+            //if (crawlerPos.x > width || crawlerPos.x < 0 || crawlerPos.z > depth || crawlerPos.z < 0)
+            //    crawlerPos -= Vector3Int.RoundToInt(dir * 20);
+            crawler.transform.position = crawlerPos;
+
+            if (minDimensions.x > crawlerPos.x) minDimensions.x = crawlerPos.x;
+            if (minDimensions.z > crawlerPos.z) minDimensions.z = crawlerPos.z;
+            if (maxDimensions.x < crawlerPos.x) maxDimensions.x = crawlerPos.x;
+            if (maxDimensions.z < crawlerPos.z) maxDimensions.z = crawlerPos.z;
+
+            CheckOutOfBounds();
+
+            yield return null;
+        }
+
+        UnityEditor.EditorUtility.DisplayProgressBar("Generating City", "Fixing Roads", progress += 0.005f);
+        ReclaimMap();
+        FixRoads();
+
+        UnityEditor.EditorUtility.DisplayProgressBar("Generating City", "Building Houses", progress += 0.005f);
+        Invoke("BuildHouses", 0.1f);
     }
 
     bool IsVoronoiType(int x, int z, ZoneType type)
@@ -382,7 +408,7 @@ public class CityGenerator : MonoBehaviour
                     {
                         for (int i = (int)(-box.size.x / 2.0f); i < box.size.x / 2.0f; i++)
                         {
-                            Vector3Int mapKey = Vector3Int.RoundToInt(go.transform.position +           new Vector3Int(i, 0, j));
+                            Vector3Int mapKey = Vector3Int.RoundToInt(go.transform.position +               new Vector3Int(i, 0, j));
                             if (!citymap.ContainsKey(mapKey))
                             {
                                 citymap.Add(mapKey, pt);
@@ -397,7 +423,8 @@ public class CityGenerator : MonoBehaviour
         AddFillers(0, ZoneType.R);
         AddFillers(1, ZoneType.C);
         AddFillers(2, ZoneType.I);
-     }
+        UnityEditor.EditorUtility.ClearProgressBar();
+    }
 
     void AddFillers(int modelId, ZoneType type)
     {
