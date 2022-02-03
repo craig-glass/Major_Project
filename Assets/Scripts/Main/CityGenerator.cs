@@ -7,31 +7,43 @@ using System.Linq;
 class RoadPiece : IEquatable<RoadPiece>
 {
     public Vector3Int position;
-    public GridCrawler2.RoadType type;
+    public CityGenerator.RoadType type;
     public int yRotation;
     public GameObject road;
 
     public bool Equals(RoadPiece other)
     {
         return (position == other.position && type == other.type && yRotation == other.yRotation || 
-            position == other.position && type == GridCrawler2.RoadType.STRAIGHT && other.type == GridCrawler2.RoadType.STRAIGHT
+            position == other.position && type == CityGenerator.RoadType.STRAIGHT && other.type == CityGenerator.RoadType.STRAIGHT
             && Mathf.Abs(yRotation - other.yRotation) == 180);
     }
 }
 
-public class GridCrawler2 : MonoBehaviour
+public class CityGenerator : MonoBehaviour
 {
     public GameObject crawler;
     public GameObject straight;
     public GameObject corner;
     public GameObject tJunction;
     public GameObject crossroad;
-    public GameObject house;
-    public GameObject shack;
-    public GameObject lawn;
+    public GameObject[] residentialSmall;
+    public GameObject[] residentialMedium;
+    public GameObject[] residentialLarge;
+    public GameObject[] commercialSmall;
+    public GameObject[] commercialMedium;
+    public GameObject[] commercialLarge;
+    public GameObject[] industrial;
+    public GameObject[] fillers;
 
-    public enum PieceType { ROAD, HOUSE, SHACK, LAWN };
+    public enum PieceType { ROAD, HOUSE, SHACK, LAWN, COMMERCIAL, INDUSTRY, NONE };
     public Dictionary<Vector3Int, PieceType> citymap = new Dictionary<Vector3Int, PieceType>();
+
+    public enum ZoneType
+    {
+        R, C, I
+    };
+
+    List<List<int>> zones = new List<List<int>>();
 
     int width = 500;
     int depth = 500;
@@ -56,6 +68,10 @@ public class GridCrawler2 : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        zones.Add(new List<int> { 0, 1 }); // residential
+        zones.Add(new List<int> { 2, 3 }); // commercial
+        zones.Add(new List<int> { 4, 5 }); // industrial
+
         for (int i = 0; i <= 5; i++)
         {
             Vector3Int mapKey = Vector3Int.RoundToInt(Vector3Int.RoundToInt(dir * -i));
@@ -227,32 +243,98 @@ public class GridCrawler2 : MonoBehaviour
         if (maxDimensions.z < crawlerPos.z) maxDimensions.z = crawlerPos.z;
     }
 
+    bool IsVoronoiType(int x, int z, ZoneType type)
+    {
+        foreach (int t in zones[(int)type])
+        {
+            if (MeshUtils.voronoiMap[x + Mathf.Abs(minDimensions.x) + 10, z + Mathf.Abs(minDimensions.z) + 10] == t)
+                return true;
+        }
+        return false;
+    }
+
     void BuildHouses()
     {
+        MeshUtils.GenerateVoronoi(6, maxDimensions.x + Mathf.Abs(minDimensions.x) + 20, maxDimensions.z + Mathf.Abs(minDimensions.z) + 20);
+
         for (int z = minDimensions.z - 10; z < maxDimensions.z + 10; z++)
         {
             for (int x = minDimensions.x - 10; x < maxDimensions.x + 10; x++)
             {
                 Vector3Int pos = new Vector3Int(x, 0, z);
 
-                GameObject[] buildings = { house, shack };
 
-                PieceType pt;
-                GameObject go;
+                PieceType pt = PieceType.NONE;
+                GameObject go = null;
+                float density = MeshUtils.fBM(x * 0.005f, z * 0.005f, 3);
 
-                int rand = UnityEngine.Random.Range(0, 2);
-
-                if (rand == 0)
+                if (IsVoronoiType(x, z, ZoneType.R))
                 {
-                    go = Instantiate(house, pos, Quaternion.identity);
+                    if (density < 0.464f)
+                    {
+                        go = Instantiate(residentialSmall[UnityEngine.Random.Range(0, residentialSmall.Length)], pos, Quaternion.identity);
+                    }
+                    else if (density < 0.623f)
+                    {
+                        go = Instantiate(residentialMedium[UnityEngine.Random.Range(0, residentialMedium.Length)], pos, Quaternion.identity);
+                    }
+                    else
+                    {
+                        go = Instantiate(residentialLarge[UnityEngine.Random.Range(0, residentialLarge.Length)], pos, Quaternion.identity);
+                    }
                     pt = PieceType.HOUSE;
+                }
+
+                else if (IsVoronoiType(x, z, ZoneType.C))
+                {
+                    
+
+                    if (density < 0.464f)
+                    {
+                        go = Instantiate(commercialSmall[UnityEngine.Random.Range(0, commercialSmall.Length)], pos, Quaternion.identity);
+                    }
+                    else if (density < 0.623f)
+                    {
+                        go = Instantiate(commercialMedium[UnityEngine.Random.Range(0, commercialMedium.Length)], pos, Quaternion.identity);
+                    }
+                    else 
+                    {
+                        go = Instantiate(commercialLarge[UnityEngine.Random.Range(0, commercialLarge.Length)], pos, Quaternion.identity);
+                    }
+
+                    pt = PieceType.COMMERCIAL;
                 }
                 else
                 {
-                    go = Instantiate(shack, pos, Quaternion.identity);
-                    pt = PieceType.SHACK;
+                    go = Instantiate(industrial[UnityEngine.Random.Range(0, industrial.Length)], pos, Quaternion.identity);
+                    pt = PieceType.INDUSTRY;
                 }
 
+                if (go == null) continue;
+                bool found = false;
+
+                BoxCollider box = go.GetComponent<BoxCollider>();
+
+                for (int j = (int)(-box.size.z / 2.0f); j < box.size.z / 2.0f; j++)
+                {
+                    for (int i = (int)(-box.size.x / 2.0f); i < box.size.x / 2.0f; i++)
+                    {
+                        Vector3Int mapKey = Vector3Int.RoundToInt(go.transform.position + new Vector3Int(j, 0, i));
+                        if (citymap.ContainsKey(mapKey))
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) break;
+                }
+
+                if (found)
+                {
+                    DestroyImmediate(go);
+                    go = null;
+                    continue;
+                }
 
                 RaycastHit hitUp = new RaycastHit();
                 RaycastHit hitForward = new RaycastHit();
@@ -260,8 +342,10 @@ public class GridCrawler2 : MonoBehaviour
                 RaycastHit hitLeft = new RaycastHit();
                 RaycastHit hitRight = new RaycastHit();
 
-                if (Physics.Raycast(pos - new Vector3Int(0, 2, 0), Vector3.up, out hitUp, 3) ||
-                    !Physics.Raycast(pos, go.transform.forward, out hitForward, 1) && !Physics.Raycast(pos, -go.transform.forward, out hitBack, 1) && !Physics.Raycast(pos, go.transform.right, out hitRight, 1) && !Physics.Raycast(pos, -go.transform.right, out hitLeft, 1))
+                int roadMask = 1 << 6;
+
+                if (
+                    !Physics.Raycast(pos, go.transform.forward, out hitForward, box.size.z + 1, roadMask) && !Physics.Raycast(pos, -go.transform.forward, out hitBack, box.size.z + 1, roadMask) && !Physics.Raycast(pos, go.transform.right, out hitRight, box.size.x + 1, roadMask) && !Physics.Raycast(pos, -go.transform.right, out hitLeft, box.size.x + 1, roadMask))
                 {
                     DestroyImmediate(go);
                     go = null;
@@ -294,18 +378,28 @@ public class GridCrawler2 : MonoBehaviour
                         }
                     }
 
-                    Vector3Int mapKey = Vector3Int.RoundToInt(go.transform.position);
-                    if (!citymap.ContainsKey(mapKey))
+                    for (int j = (int)(-box.size.z/2.0f); j < box.size.z/2.0f; j++)
                     {
-                        citymap.Add(mapKey, pt);
+                        for (int i = (int)(-box.size.x / 2.0f); i < box.size.x / 2.0f; i++)
+                        {
+                            Vector3Int mapKey = Vector3Int.RoundToInt(go.transform.position +           new Vector3Int(i, 0, j));
+                            if (!citymap.ContainsKey(mapKey))
+                            {
+                                citymap.Add(mapKey, pt);
+                            }
+                        }
                     }
+
+                    
                 }
             }
         }
-        AddFillers();
+        AddFillers(0, ZoneType.R);
+        AddFillers(1, ZoneType.C);
+        AddFillers(2, ZoneType.I);
      }
 
-    void AddFillers()
+    void AddFillers(int modelId, ZoneType type)
     {
         List<Mesh> meshes = new List<Mesh>();
         List<Vector3> mPositions = new List<Vector3>();
@@ -317,10 +411,10 @@ public class GridCrawler2 : MonoBehaviour
             for (int x = minDimensions.x - 10; x < maxDimensions.x + 10; x++)
             {
                 Vector3Int mapKey = new Vector3Int(x, 0, z);
-                if (!citymap.ContainsKey(mapKey))
+                if (!citymap.ContainsKey(mapKey) && IsVoronoiType(x, z, type))
                 {
                     citymap.Add(mapKey, PieceType.LAWN);
-                    go = Instantiate(lawn, mapKey, Quaternion.identity);
+                    go = Instantiate(fillers[modelId], mapKey, Quaternion.identity);
 
                     mat = go.GetComponent<MeshRenderer>().material;
                     MeshFilter[] meshFilters = go.GetComponentsInChildren<MeshFilter>();
