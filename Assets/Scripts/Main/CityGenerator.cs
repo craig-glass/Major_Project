@@ -34,6 +34,7 @@ public class CityGenerator : MonoBehaviour
     public GameObject[] commercialLarge;
     public GameObject[] industrial;
     public GameObject[] fillers;
+    public GameObject[] trees;
 
     public enum PieceType { ROAD, HOUSE, SHACK, LAWN, COMMERCIAL, INDUSTRY, NONE };
     public Dictionary<Vector3Int, PieceType> citymap = new Dictionary<Vector3Int, PieceType>();
@@ -173,13 +174,20 @@ public class CityGenerator : MonoBehaviour
             Vector3Int mapKey = Vector3Int.RoundToInt(crawlerPos - Vector3Int.RoundToInt(dir * i));
             if (citymap.ContainsKey(mapKey))
             {
-                if (!Physics.Raycast(mapKey + new Vector3Int(0, -5, 0), Vector3.up, out hitUp, 10, roadMask))
+                if (!HitRoad(mapKey))
                 {
                     citymap.Remove(mapKey);
                 }
                     
             }
         }
+    }
+
+    bool HitRoad(Vector3Int gridPos)
+    {
+        int roadMask = 1 << 6;
+        RaycastHit hitUp;
+        return Physics.Raycast(gridPos + new Vector3Int(0, -5, 0), Vector3.up, out hitUp, 10, roadMask);
     }
 
     IEnumerator Crawl()
@@ -432,6 +440,7 @@ public class CityGenerator : MonoBehaviour
         List<Vector3> mPositions = new List<Vector3>();
         GameObject go = null;
         Material mat = null;
+        PieceType thisPiece = PieceType.NONE;
         
         for (int z = minDimensions.z - 10; z < maxDimensions.z + 10; z++)
         {
@@ -440,7 +449,47 @@ public class CityGenerator : MonoBehaviour
                 Vector3Int mapKey = new Vector3Int(x, 0, z);
                 if (!citymap.ContainsKey(mapKey) && IsVoronoiType(x, z, type))
                 {
-                    citymap.Add(mapKey, PieceType.LAWN);
+                    if (type == ZoneType.R) thisPiece = PieceType.LAWN;
+                    else if (type == ZoneType.C) thisPiece = PieceType.COMMERCIAL;
+                    else if (type == ZoneType.I) thisPiece = PieceType.INDUSTRY;
+
+                    citymap.Add(mapKey, thisPiece);
+
+                    Vector3 treePos = mapKey + new Vector3(UnityEngine.Random.Range(-0.8f, 0.8f), 0, UnityEngine.Random.Range(-0.8f, 0.8f));
+
+                    if (!HitRoad(Vector3Int.RoundToInt(treePos)))
+                    {
+                        float placedTree1 = MeshUtils.fBM(x * 0.002f, z * 0.002f, 8);
+                        float placedTree2 = MeshUtils.fBM(x * 0.003f, z * 0.003f, 8);
+                        float placedTree3 = MeshUtils.fBM(x * 0.004f, z * 0.004f, 6);
+                        float placedTree4 = MeshUtils.fBM(x * 0.002f, z * 0.002f, 7);
+
+                        if (thisPiece == PieceType.LAWN)
+                        {
+                            if (placedTree1 < 0.4 && UnityEngine.Random.Range(0, 10) < 3)
+                            {
+                                go = Instantiate(trees[0], treePos, Quaternion.identity);
+                                go.transform.localScale *= 1 + Mathf.PerlinNoise(x * 0.005f, z * 0.005f) * 2.0f;
+                            }
+                            else if (placedTree2 < 0.45 && UnityEngine.Random.Range(0, 10) < 4)
+                            {
+                                go = Instantiate(trees[1], treePos, Quaternion.identity);
+                                go.transform.localScale *= 1 + Mathf.PerlinNoise(x * 0.005f, z * 0.005f) * 3.0f;
+                            }
+                            else if (placedTree3 < 0.5 && UnityEngine.Random.Range(0, 10) < 1)
+                            {
+                                go = Instantiate(trees[2], treePos, Quaternion.identity);
+                                go.transform.localScale *= 1 + Mathf.PerlinNoise(x * 0.005f, z * 0.005f);
+                            }
+                            else if (placedTree4 < 0.55 && UnityEngine.Random.Range(0, 10) < 1)
+                            {
+                                go = Instantiate(trees[3], treePos, Quaternion.identity);
+                                go.transform.localScale *= 1 + Mathf.PerlinNoise(x * 0.005f, z * 0.005f) * 1.5f;
+                            }
+                            
+                        }
+                    }                    
+
                     go = Instantiate(fillers[modelId], mapKey, Quaternion.identity);
 
                     mat = go.GetComponent<MeshRenderer>().material;
