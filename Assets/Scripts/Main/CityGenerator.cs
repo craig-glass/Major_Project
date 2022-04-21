@@ -13,7 +13,7 @@ class RoadPiece : IEquatable<RoadPiece>
 
     public bool Equals(RoadPiece other)
     {
-        return (position == other.position && type == other.type && yRotation == other.yRotation || 
+        return (position == other.position && type == other.type && yRotation == other.yRotation ||
             position == other.position && type == CityGenerator.RoadType.STRAIGHT && other.type == CityGenerator.RoadType.STRAIGHT
             && Mathf.Abs(yRotation - other.yRotation) == 180);
     }
@@ -35,8 +35,10 @@ public class CityGenerator : MonoBehaviour
     public GameObject[] industrial;
     public GameObject[] fillers;
     public GameObject[] trees;
+    public GameObject park;
 
-    public enum PieceType { ROAD, HOUSE, SHACK, LAWN, COMMERCIAL, INDUSTRY, NONE };
+
+    public enum PieceType { ROAD, HOUSE, SHACK, LAWN, COMMERCIAL, INDUSTRY, PARK, NONE };
     public Dictionary<Vector3Int, PieceType> citymap = new Dictionary<Vector3Int, PieceType>();
 
     public enum ZoneType
@@ -46,14 +48,14 @@ public class CityGenerator : MonoBehaviour
 
     List<List<int>> zones = new List<List<int>>();
 
-    int width = 1000;
-    int depth = 1000;
+    int width = 250;
+    int depth = 250;
 
     Vector3Int crawlerPos;
     Vector3 dir = new Vector3(0, 0, 1);
     Vector3 neutral = new Vector3(0, 0, 1);
 
-    public int numberOfCrawls = 200;
+    public int numberOfCrawls = 50;
     float progress = 0.005f;
 
     Vector3Int minDimensions = Vector3Int.zero;
@@ -145,11 +147,11 @@ public class CityGenerator : MonoBehaviour
                     Instantiate(tJunction, roadGroup.Key, Quaternion.identity);
                 else if (hasCorner0 && hasCorner270 || hasCorner0 && hasStraight90 || hasCorner0 && hasStraight270 || hasCorner270 && hasStraight90 || hasCorner270 && hasStraight270)
                     Instantiate(tJunction, roadGroup.Key, Quaternion.Euler(0, -90, 0));
-                else if (hasCorner90 && hasCorner180 || hasCorner90 && hasStraight90 || hasCorner90 && hasStraight270 || hasCorner180 && hasStraight90 || hasCorner180 && hasStraight270) 
+                else if (hasCorner90 && hasCorner180 || hasCorner90 && hasStraight90 || hasCorner90 && hasStraight270 || hasCorner180 && hasStraight90 || hasCorner180 && hasStraight270)
                     Instantiate(tJunction, roadGroup.Key, Quaternion.Euler(0, 90, 0));
                 else if (hasCorner180 && hasCorner270 || hasCorner180 && hasStraight0 || hasCorner180 && hasStraight180 || hasCorner270 && hasStraight0 || hasCorner270 && hasStraight180)
                     Instantiate(tJunction, roadGroup.Key, Quaternion.Euler(0, 180, 0));
-                
+
             }
         }
     }
@@ -178,7 +180,7 @@ public class CityGenerator : MonoBehaviour
                 {
                     citymap.Remove(mapKey);
                 }
-                    
+
             }
         }
     }
@@ -230,6 +232,7 @@ public class CityGenerator : MonoBehaviour
 
                 newRoad = new RoadPiece { position = crawlerPos, type = RoadType.STRAIGHT, yRotation = (int)Mathf.Round(go.transform.rotation.eulerAngles.y / 90) * 90, road = go };
             }
+
 
             AddNoDuplicates(newRoad);
 
@@ -287,6 +290,11 @@ public class CityGenerator : MonoBehaviour
         return false;
     }
 
+    bool OutsideMap(Vector3Int gridPos)
+    {
+        return (gridPos.x > maxDimensions.x || gridPos.x < minDimensions.x || gridPos.z > maxDimensions.z || gridPos.z < minDimensions.z);
+    }
+
     void BuildHouses()
     {
         MeshUtils.GenerateVoronoi(6, maxDimensions.x + Mathf.Abs(minDimensions.x) + 20, maxDimensions.z + Mathf.Abs(minDimensions.z) + 20);
@@ -302,8 +310,16 @@ public class CityGenerator : MonoBehaviour
                 GameObject go = null;
                 float density = MeshUtils.fBM(x * 0.005f, z * 0.005f, 3);
 
+
+
                 if (IsVoronoiType(x, z, ZoneType.R))
                 {
+                    if (UnityEngine.Random.Range(0, 5000) == 0 && !OutsideMap(pos))
+                    {
+                        
+                        go = Instantiate(park, pos, Quaternion.identity);
+                        pt = PieceType.PARK;
+                    }
                     if (density < 0.464f)
                     {
                         go = Instantiate(residentialSmall[UnityEngine.Random.Range(0, residentialSmall.Length)], pos, Quaternion.identity);
@@ -321,7 +337,7 @@ public class CityGenerator : MonoBehaviour
 
                 else if (IsVoronoiType(x, z, ZoneType.C))
                 {
-                    
+
 
                     if (density < 0.464f)
                     {
@@ -331,7 +347,7 @@ public class CityGenerator : MonoBehaviour
                     {
                         go = Instantiate(commercialMedium[UnityEngine.Random.Range(0, commercialMedium.Length)], pos, Quaternion.identity);
                     }
-                    else 
+                    else
                     {
                         go = Instantiate(commercialLarge[UnityEngine.Random.Range(0, commercialLarge.Length)], pos, Quaternion.identity);
                     }
@@ -344,6 +360,9 @@ public class CityGenerator : MonoBehaviour
                     pt = PieceType.INDUSTRY;
                 }
 
+
+
+
                 if (go == null) continue;
                 bool found = false;
 
@@ -354,7 +373,7 @@ public class CityGenerator : MonoBehaviour
                     for (int i = (int)(-box.size.x / 2.0f); i < box.size.x / 2.0f; i++)
                     {
                         Vector3Int mapKey = Vector3Int.RoundToInt(go.transform.position + new Vector3Int(j, 0, i));
-                        if (citymap.ContainsKey(mapKey))
+                        if (citymap.ContainsKey(mapKey) || OutsideMap(mapKey))
                         {
                             found = true;
                             break;
@@ -412,11 +431,11 @@ public class CityGenerator : MonoBehaviour
                         }
                     }
 
-                    for (int j = (int)(-box.size.z/2.0f); j < box.size.z/2.0f; j++)
+                    for (int j = (int)(-box.size.z / 2.0f); j < box.size.z / 2.0f; j++)
                     {
                         for (int i = (int)(-box.size.x / 2.0f); i < box.size.x / 2.0f; i++)
                         {
-                            Vector3Int mapKey = Vector3Int.RoundToInt(go.transform.position +               new Vector3Int(i, 0, j));
+                            Vector3Int mapKey = Vector3Int.RoundToInt(go.transform.position + new Vector3Int(i, 0, j));
                             if (!citymap.ContainsKey(mapKey))
                             {
                                 citymap.Add(mapKey, pt);
@@ -424,14 +443,35 @@ public class CityGenerator : MonoBehaviour
                         }
                     }
 
-                    
+
                 }
             }
         }
         AddFillers(0, ZoneType.R);
         AddFillers(1, ZoneType.C);
         AddFillers(2, ZoneType.I);
+        CleanUpDeadEnds();
         UnityEditor.EditorUtility.ClearProgressBar();
+    }
+
+    void CleanUpDeadEnds()
+    {
+        GameObject[] deadEnds = GameObject.FindGameObjectsWithTag("DeadEnd");
+        Dictionary<Vector3Int, GameObject> matches = new Dictionary<Vector3Int, GameObject>();
+
+        foreach (GameObject de in deadEnds)
+        {
+            Vector3Int endPos = Vector3Int.RoundToInt(de.transform.position);
+            if (!matches.ContainsKey(endPos))
+            {
+                matches.Add(endPos, de);
+            }
+            else
+            {
+                DestroyImmediate(matches[endPos]);
+                DestroyImmediate(de);
+            }
+        }
     }
 
     void AddFillers(int modelId, ZoneType type)
@@ -441,7 +481,7 @@ public class CityGenerator : MonoBehaviour
         GameObject go = null;
         Material mat = null;
         PieceType thisPiece = PieceType.NONE;
-        
+
         for (int z = minDimensions.z - 10; z < maxDimensions.z + 10; z++)
         {
             for (int x = minDimensions.x - 10; x < maxDimensions.x + 10; x++)
@@ -457,7 +497,7 @@ public class CityGenerator : MonoBehaviour
 
                     Vector3 treePos = mapKey + new Vector3(UnityEngine.Random.Range(-0.8f, 0.8f), 0, UnityEngine.Random.Range(-0.8f, 0.8f));
 
-                    if (!HitRoad(Vector3Int.RoundToInt(treePos)))
+                    if (!HitRoad(Vector3Int.RoundToInt(treePos)) && !OutsideMap(Vector3Int.RoundToInt(treePos)))
                     {
                         float placedTree1 = MeshUtils.fBM(x * 0.002f, z * 0.002f, 8);
                         float placedTree2 = MeshUtils.fBM(x * 0.003f, z * 0.003f, 8);
@@ -481,14 +521,15 @@ public class CityGenerator : MonoBehaviour
                                 go = Instantiate(trees[2], treePos, Quaternion.identity);
                                 go.transform.localScale *= 1 + Mathf.PerlinNoise(x * 0.005f, z * 0.005f);
                             }
-                            else if (placedTree4 < 0.55 && UnityEngine.Random.Range(0, 10) < 1)
+                            else if (placedTree4 < 0.75 && UnityEngine.Random.Range(0, 10) < 1)
                             {
                                 go = Instantiate(trees[3], treePos, Quaternion.identity);
                                 go.transform.localScale *= 1 + Mathf.PerlinNoise(x * 0.005f, z * 0.005f) * 1.5f;
                             }
-                            
+
+
                         }
-                    }                    
+                    }
 
                     go = Instantiate(fillers[modelId], mapKey, Quaternion.identity);
 
@@ -511,7 +552,7 @@ public class CityGenerator : MonoBehaviour
             List<List<Mesh>> allMeshes = MeshTools.Split(meshes, 1000);
             List<List<Vector3>> allPositions = MeshTools.Split(mPositions, 1000);
 
-            for ( int i = 0; i < allMeshes.Count; i++)
+            for (int i = 0; i < allMeshes.Count; i++)
             {
                 GameObject subMesh = new GameObject("SubMesh");
                 subMesh.transform.parent = combinedMesh.transform;
@@ -521,7 +562,7 @@ public class CityGenerator : MonoBehaviour
                 mf.mesh = MeshTools.MergeMeshes(allMeshes[i], allPositions[i]);
             }
 
-            
+
         }
-    }    
+    }
 }

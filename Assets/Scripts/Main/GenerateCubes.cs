@@ -9,12 +9,12 @@ public class GenerateCubes : MonoBehaviour
     float xAxis = 4.5f;
     float zAxis = 4.5f;
     Vector3 pos;
-    float spacing = 2.0f;
+    float spacing = 10.0f;
 
     // Start is called before the first frame update
     void Start()
     {
-        InstantiateCubes(5);
+        InstantiateCubes(500);
     }
 
     // Update is called once per frame
@@ -25,25 +25,43 @@ public class GenerateCubes : MonoBehaviour
 
     void InstantiateCubes(int quantity)
     {
-        
-        for (int x = 0; x < quantity; x++)
+        MeshUtils.GenerateVoronoi(20, quantity, quantity);
+
+        for (int x = 10; x < quantity; x+= 20)
         {
-            for (int y = 0; y < quantity; y++)
+            for (int y = 10; y < quantity; y+= 20)
             {
-                
-                float yScale = Random.Range(1f, 4f);
-                cubePrefab.transform.localScale = new Vector3(1f, yScale, 1f);
-                pos = new Vector3(xAxis, yScale / 2, zAxis);
-                Instantiate(cubePrefab, pos, Quaternion.identity);
+                GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
 
-                
-                
-                //cubePrefab.transform.position = pos + new Vector3(0f, yScale, 0f);
-                xAxis -= spacing;
+
+                Renderer r = go.GetComponent<Renderer>();
+                if (MeshUtils.voronoiMap[x, y] < 15)
+                    r.material.color = Color.green;
+                else if (MeshUtils.voronoiMap[x, y] < 18)
+                    r.material.color = Color.red;
+                else if (MeshUtils.voronoiMap[x, y] < 20)
+                    r.material.color = Color.blue;
+
+                float perlin = MeshUtils.fBM(x * 0.004f, y * 0.004f, 5);
+
+                int h = 1;
+                if (perlin < 0.417f) h = 10;
+                else if (perlin < 0.509f) h = 20;
+                else if (perlin < 0.623f) h = 30;
+                else if (perlin < 0.679f) h = 50;
+                else h = 60;
+
+                //float yScale = Random.Range(10f, 40f);
+                float yScale = h;
+                go.transform.localScale = new Vector3(15f, yScale, 15f);
+                go.transform.position = new Vector3(x, yScale / 2, y);
+
+                //pos = new Vector3(x, yScale / 2, y);
+                //Instantiate(cubePrefab, pos, Quaternion.identity);
+                //xAxis -= spacing;
             }
-
-            zAxis -= spacing;
-            xAxis = 4.5f;
+            //zAxis -= spacing;
+            //xAxis = 10.0f;
         }    
     }
 }

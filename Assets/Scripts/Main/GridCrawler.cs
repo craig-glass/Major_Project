@@ -5,18 +5,29 @@ using UnityEngine;
 public class GridCrawler : MonoBehaviour
 {
     public GameObject crawler;
-    int width = 5000;
-    int depth = 5000;
+    int width = 500;
+    int depth = 500;
+    int crawlCount = 300;
     Vector3Int crawlerPos;
 
     // Start is called before the first frame update
     void Start()
     {
-        
+      
+       
     }
 
     // Update is called once per frame
     void Update()
+    {
+        if (crawlCount > 0)
+        {
+            Crawl();
+            crawlCount--;
+        }
+    }
+
+    void Crawl()
     {
         int dx = Random.Range(-1, 2);
         int dz = Random.Range(-1, 2);

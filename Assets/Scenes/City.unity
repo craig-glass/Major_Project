@@ -476,7 +476,8 @@ MonoBehaviour:
   - {fileID: 919132149155446097, guid: 84f893de8b43649c38115086393b8f3c, type: 3}
   - {fileID: 919132149155446097, guid: 43d769e5f862643e99ac589ee6aa9821, type: 3}
   - {fileID: 919132149155446097, guid: 099cb1901ff95481bb82e5a156e5213c, type: 3}
-  numberOfCrawls: 200
+  park: {fileID: 2076683445006418026, guid: 8e97e73d9d5cb448886d336c474d8141, type: 3}
+  numberOfCrawls: 400
 --- !u!4 &1922227214
 Transform:
   m_ObjectHideFlags: 0

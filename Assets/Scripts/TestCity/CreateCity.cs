@@ -16,9 +16,9 @@ public class CreateCity : MonoBehaviour
     {
         MeshUtils.GenerateVoronoi(20, width, depth);
 
-        for (int z = 0; z < depth; z++)
+        for (int z = 0; z < depth; z+= 2)
         {
-            for (int x = 0; x < width; x++)
+            for (int x = 0; x < width; x+= 2)
             {
                 GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 go.transform.position = new Vector3(x, 0, z);
